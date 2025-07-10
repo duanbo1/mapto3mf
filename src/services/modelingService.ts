@@ -7,6 +7,7 @@ export class ModelingService {
   private centerPoint: [number, number] = [0, 0];
   private scale: number = 1;
   private selectedBBox: BoundingBox | null = null;
+  private terrainHeight: number = 0;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -19,6 +20,7 @@ export class ModelingService {
     this.centerPoint = basicConfig.coordinateSystem.centerPoint;
     this.scale = basicConfig.coordinateSystem.scale * basicConfig.renderHeight;
     this.selectedBBox = bbox;
+    this.terrainHeight = modelConfig.terrain.baseHeight * this.scale;
     
     // 首先生成底盘平台
     this.generateBasePlatform(bbox, basicConfig, modelConfig);
@@ -124,7 +126,7 @@ export class ModelingService {
     this.models.push({
       id: 'base-platform',
       type: 'terrain',
-      geometry,
+      geometry: this.createExportableGeometry(geometry, platform.position),
       material,
       position: [0, -modelConfig.terrain.baseHeight * this.scale / 2, 0]
     });
@@ -261,7 +263,8 @@ export class ModelingService {
       
       const building = new THREE.Mesh(geometry, material);
       building.rotation.x = -Math.PI / 2;
-      building.position.y = height / 2;
+      // 建筑底部贴着地面（底盘顶部）
+      building.position.y = this.terrainHeight / 2 + height / 2;
       building.castShadow = true;
       building.receiveShadow = true;
       building.add(wireframe);
@@ -281,13 +284,21 @@ export class ModelingService {
       this.models.push({
         id: `building-${element.id}`,
         type: 'building',
-        geometry,
+        geometry: this.createExportableGeometry(geometry, building.position),
         material,
         position: [building.position.x, building.position.y, building.position.z]
       });
     } catch (error) {
       console.warn('创建建筑时出错:', error);
     }
+  }
+
+  private isPointInBounds(point: {x: number, z: number}, bbox: BoundingBox): boolean {
+    // 将本地坐标转换回经纬度进行检查
+    const lon = point.x / (111320 * Math.cos(this.centerPoint[1] * Math.PI / 180) * this.scale) + this.centerPoint[0];
+    const lat = -point.z / (111320 * this.scale) + this.centerPoint[1];
+    
+    return lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east;
   }
 
   private createRoad(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
@@ -336,10 +347,10 @@ export class ModelingService {
       
       const road = new THREE.Mesh(geometry, material);
       
-      // 定位和旋转道路段
+      // 定位和旋转道路段 - 道路贴着底盘顶部
       road.position.set(
         (start.x + end.x) / 2,
-        roadConfig.height * this.scale / 2,
+        this.terrainHeight / 2 + roadConfig.height * this.scale / 2,
         (start.z + end.z) / 2
       );
       
@@ -352,20 +363,12 @@ export class ModelingService {
       this.models.push({
         id: `road-${element.id}-${i}`,
         type: 'road',
-        geometry,
+        geometry: this.createExportableGeometry(geometry, road.position),
         material,
         position: [road.position.x, road.position.y, road.position.z],
         rotation: [0, angle, 0]
       });
     }
-  }
-
-  private isPointInBounds(point: {x: number, z: number}, bbox: BoundingBox): boolean {
-    // 将本地坐标转换回经纬度进行检查
-    const lon = point.x / (111320 * Math.cos(this.centerPoint[1] * Math.PI / 180) * this.scale) + this.centerPoint[0];
-    const lat = -point.z / (111320 * this.scale) + this.centerPoint[1];
-    
-    return lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east;
   }
 
   private createBridge(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
@@ -404,9 +407,10 @@ export class ModelingService {
       
       const bridge = new THREE.Mesh(bridgeGeometry, bridgeMaterial);
       
+      // 桥梁高于地面
       bridge.position.set(
         (start.x + end.x) / 2,
-        modelConfig.bridges.height * this.scale / 2 + 2 * this.scale,
+        this.terrainHeight / 2 + modelConfig.bridges.height * this.scale / 2 + 2 * this.scale,
         (start.z + end.z) / 2
       );
       
@@ -425,7 +429,7 @@ export class ModelingService {
       this.models.push({
         id: `bridge-${element.id}-${i}`,
         type: 'bridge',
-        geometry: bridgeGeometry,
+        geometry: this.createExportableGeometry(bridgeGeometry, bridge.position),
         material: bridgeMaterial,
         position: [bridge.position.x, bridge.position.y, bridge.position.z],
         rotation: [0, angle, 0]
@@ -466,7 +470,8 @@ export class ModelingService {
       
       const water = new THREE.Mesh(geometry, material);
       water.rotation.x = -Math.PI / 2;
-      water.position.y = modelConfig.water.height * this.scale;
+      // 水面贴着底盘顶部
+      water.position.y = this.terrainHeight / 2 + modelConfig.water.height * this.scale;
       
       // 添加水面波纹效果
       if (modelConfig.water.waveConfig.enabled) {
@@ -478,7 +483,7 @@ export class ModelingService {
       this.models.push({
         id: `water-${element.id}`,
         type: 'water',
-        geometry,
+        geometry: this.createExportableGeometry(geometry, water.position),
         material,
         position: [water.position.x, water.position.y, water.position.z]
       });
@@ -517,7 +522,8 @@ export class ModelingService {
       
       const vegetation = new THREE.Mesh(geometry, material);
       vegetation.rotation.x = -Math.PI / 2;
-      vegetation.position.y = modelConfig.vegetation.height * this.scale / 2;
+      // 植被贴着底盘顶部
+      vegetation.position.y = this.terrainHeight / 2 + modelConfig.vegetation.height * this.scale / 2;
       vegetation.receiveShadow = true;
       
       // 添加随机树木
@@ -530,13 +536,48 @@ export class ModelingService {
       this.models.push({
         id: `vegetation-${element.id}`,
         type: 'vegetation',
-        geometry,
+        geometry: this.createExportableGeometry(geometry, vegetation.position),
         material,
         position: [vegetation.position.x, vegetation.position.y, vegetation.position.z]
       });
     } catch (error) {
       console.warn('创建植被时出错:', error);
     }
+  }
+
+  // 创建可导出的几何体数据
+  private createExportableGeometry(geometry: THREE.BufferGeometry, position: THREE.Vector3): any {
+    // 确保几何体有正确的属性
+    if (!geometry.attributes.position) {
+      console.warn('几何体缺少位置属性');
+      return null;
+    }
+
+    // 创建包含完整几何数据的对象
+    const exportGeometry = {
+      attributes: {
+        position: {
+          array: new Float32Array(geometry.attributes.position.array),
+          itemSize: geometry.attributes.position.itemSize,
+          count: geometry.attributes.position.count
+        }
+      },
+      index: geometry.index ? {
+        array: new Uint32Array(geometry.index.array),
+        count: geometry.index.count
+      } : null
+    };
+
+    // 如果有法向量，也包含进去
+    if (geometry.attributes.normal) {
+      exportGeometry.attributes.normal = {
+        array: new Float32Array(geometry.attributes.normal.array),
+        itemSize: geometry.attributes.normal.itemSize,
+        count: geometry.attributes.normal.count
+      };
+    }
+
+    return exportGeometry;
   }
 
   // 辅助方法
@@ -554,7 +595,7 @@ export class ModelingService {
 
   private addBridgePillars(bridge: THREE.Mesh, start: any, end: any, pillarConfig: any, distance: number): void {
     const pillarCount = Math.floor(distance / pillarConfig.spacing);
-    const pillarHeight = bridge.position.y + 2 * this.scale;
+    const pillarHeight = bridge.position.y;
     
     for (let i = 0; i <= pillarCount; i++) {
       const t = i / Math.max(pillarCount, 1);
@@ -622,15 +663,16 @@ export class ModelingService {
       const crown = new THREE.Mesh(crownGeometry, crownMaterial);
       
       const randomOffset = vegetationConfig.treeConfig.randomness * this.scale;
+      // 树木贴着底盘顶部
       trunk.position.set(
         randomPoint.x + (Math.random() - 0.5) * randomOffset,
-        vegetationConfig.height * 0.3 * this.scale,
+        this.terrainHeight / 2 + vegetationConfig.height * 0.3 * this.scale,
         randomPoint.z + (Math.random() - 0.5) * randomOffset
       );
       
       crown.position.set(
         trunk.position.x,
-        vegetationConfig.height * 0.8 * this.scale,
+        this.terrainHeight / 2 + vegetationConfig.height * 0.8 * this.scale,
         trunk.position.z
       );
       

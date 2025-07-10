@@ -109,7 +109,14 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
     // 鼠标事件处理
     const onMouseDown = (e: maplibregl.MapMouseEvent) => {
-      if (mapMode === 'browse') return;
+      if (mapMode === 'browse') {
+        // 在浏览模式下，允许中键拖拽
+        if (e.originalEvent.button === 1) { // 中键
+          e.originalEvent.preventDefault();
+          map.current!.dragPan.enable();
+        }
+        return;
+      }
       
       const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       
@@ -319,6 +326,14 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
     map.current.on('mousemove', onMouseMove);
     map.current.on('mouseup', onMouseUp);
     map.current.on('dblclick', onDoubleClick);
+    
+    // 添加中键拖拽支持
+    map.current.on('mousedown', (e) => {
+      if (e.originalEvent.button === 1) { // 中键
+        e.originalEvent.preventDefault();
+        map.current!.dragPan.enable();
+      }
+    });
 
     return () => {
       if (map.current) {
@@ -466,13 +481,13 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
           </div>
 
           {/* 模式选择 */}
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setMapMode('browse')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 mapMode === 'browse' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-102'
               }`}
             >
               <MousePointer className="h-4 w-4" />
@@ -480,10 +495,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
             </button>
             <button
               onClick={() => setMapMode('select')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 mapMode === 'select' 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-green-600 text-white shadow-lg scale-105' 
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-102'
               }`}
             >
               <Square className="h-4 w-4" />
@@ -491,10 +506,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
             </button>
             <button
               onClick={() => setMapMode('erase')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 mapMode === 'erase' 
-                  ? 'bg-red-600 text-white' 
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-red-600 text-white shadow-lg scale-105' 
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-102'
               }`}
             >
               <Trash2 className="h-4 w-4" />
@@ -504,45 +519,50 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
           {/* 形状选择 */}
           {mapMode === 'select' && (
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2 p-3 bg-gray-700 rounded-lg border border-gray-600">
+              <div className="col-span-3 text-xs text-gray-400 mb-2 text-center">选择形状</div>
               <button
                 onClick={() => setSelectionShape('rectangle')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                   selectionShape === 'rectangle' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
                 }`}
               >
-                <Square className="h-4 w-4" />
+                <Square className="h-5 w-5" />
                 矩形
               </button>
               <button
                 onClick={() => setSelectionShape('circle')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                   selectionShape === 'circle' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
                 }`}
               >
-                <Circle className="h-4 w-4" />
+                <Circle className="h-5 w-5" />
                 圆形
               </button>
               <button
                 onClick={() => setSelectionShape('polygon')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                   selectionShape === 'polygon' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
                 }`}
               >
-                <Polygon className="h-4 w-4" />
+                <Polygon className="h-5 w-5" />
                 多边形
               </button>
             </div>
           )}
 
           {/* 操作提示 */}
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-gray-400 p-3 bg-gray-700 rounded-lg border border-gray-600">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+              <span className="font-medium">操作提示</span>
+            </div>
             {mapMode === 'browse' && '拖拽浏览地图，滚轮缩放'}
             {mapMode === 'select' && selectionShape === 'rectangle' && '按住鼠标左键拖拽选择矩形区域'}
             {mapMode === 'select' && selectionShape === 'circle' && '按住鼠标左键拖拽选择圆形区域'}
@@ -561,11 +581,16 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
           
           {/* 选择区域信息 */}
           {selections.length > 0 && (
-            <div className="absolute top-4 left-4 bg-gray-800 bg-opacity-90 rounded-lg p-3 max-w-xs">
-              <h4 className="text-sm font-medium text-white mb-2">选择区域 ({selections.length})</h4>
+            <div className="absolute top-4 left-4 bg-gray-800 bg-opacity-95 backdrop-blur-sm rounded-lg p-4 max-w-sm border border-gray-600 shadow-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <h4 className="text-sm font-medium text-white">选择区域 ({selections.length})</h4>
+              </div>
               {selections.map((selection, index) => (
-                <div key={selection.id} className="text-xs text-gray-300 mb-1">
-                  {selection.shape} {index + 1}: {selection.bbox.south.toFixed(4)}, {selection.bbox.west.toFixed(4)} 到 {selection.bbox.north.toFixed(4)}, {selection.bbox.east.toFixed(4)}
+                <div key={selection.id} className="text-xs text-gray-300 mb-2 p-2 bg-gray-700 rounded border border-gray-600">
+                  <div className="font-medium text-green-400 mb-1">{selection.shape} {index + 1}</div>
+                  <div>坐标: {selection.bbox.south.toFixed(4)}, {selection.bbox.west.toFixed(4)}</div>
+                  <div>到: {selection.bbox.north.toFixed(4)}, {selection.bbox.east.toFixed(4)}</div>
                 </div>
               ))}
             </div>

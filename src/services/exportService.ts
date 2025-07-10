@@ -29,40 +29,40 @@ export class ExportService {
 
     // 为每个模型添加顶点和三角形
     let objectId = 1;
-    let vertexOffset = 0;
 
     models.forEach((model) => {
       const vertices: string[] = [];
       const triangles: string[] = [];
       
       if (model.geometry && model.geometry.attributes && model.geometry.attributes.position) {
-        const positions = model.geometry.attributes.position.array;
+        const positionAttr = model.geometry.attributes.position;
+        const positions = positionAttr.array;
         const indices = model.geometry.index ? model.geometry.index.array : null;
         
         // 添加顶点
         for (let i = 0; i < positions.length; i += 3) {
-          const x = (positions[i] + model.position[0]).toFixed(6);
-          const y = (positions[i + 1] + model.position[1]).toFixed(6);
-          const z = (positions[i + 2] + model.position[2]).toFixed(6);
+          const x = (positions[i]).toFixed(6);
+          const y = (positions[i + 1]).toFixed(6);
+          const z = (positions[i + 2]).toFixed(6);
           vertices.push(`    <vertex x="${x}" y="${y}" z="${z}" />`);
         }
         
         // 添加三角形
         if (indices) {
           for (let i = 0; i < indices.length; i += 3) {
-            const v1 = indices[i] + vertexOffset;
-            const v2 = indices[i + 1] + vertexOffset;
-            const v3 = indices[i + 2] + vertexOffset;
+            const v1 = indices[i];
+            const v2 = indices[i + 1];
+            const v3 = indices[i + 2];
             triangles.push(`    <triangle v1="${v1}" v2="${v2}" v3="${v3}" />`);
           }
         } else {
           // 为非索引几何体生成三角形
-          const vertexCount = positions.length / 3;
+          const vertexCount = Math.floor(positions.length / 3);
           for (let i = 0; i < vertexCount; i += 3) {
             if (i + 2 < vertexCount) {
-              const v1 = i + vertexOffset;
-              const v2 = i + 1 + vertexOffset;
-              const v3 = i + 2 + vertexOffset;
+              const v1 = i;
+              const v2 = i + 1;
+              const v3 = i + 2;
               triangles.push(`    <triangle v1="${v1}" v2="${v2}" v3="${v3}" />`);
             }
           }
@@ -81,7 +81,6 @@ ${triangles.join('\n')}
       </mesh>
     </object>`;
 
-          vertexOffset += vertices.length;
           objectId++;
         }
       }

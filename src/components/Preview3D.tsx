@@ -181,6 +181,16 @@ export const Preview3D: React.FC<Preview3DProps> = ({ osmData, basicConfig, mode
     try {
       const generatedModels = await modelingServiceRef.current.generateModels(osmData, basicConfig, modelConfig, bbox);
       setModels(generatedModels);
+      console.log('生成的模型数量:', generatedModels.length);
+      generatedModels.forEach((model, index) => {
+        console.log(`模型 ${index}:`, {
+          id: model.id,
+          type: model.type,
+          hasGeometry: !!model.geometry,
+          hasPositions: !!(model.geometry?.attributes?.position),
+          vertexCount: model.geometry?.attributes?.position?.count || 0
+        });
+      });
     } catch (error) {
       console.error('生成模型时出错:', error);
     } finally {
@@ -190,6 +200,7 @@ export const Preview3D: React.FC<Preview3DProps> = ({ osmData, basicConfig, mode
 
   const exportModel = () => {
     if (models.length === 0) return;
+    console.log('导出模型:', models);
     ExportService.export3MF(models, 'osm-model.3mf');
   };
 
