@@ -65,7 +65,16 @@ export const DataVisualization: React.FC<DataVisualizationProps> = ({ osmData, b
   }, [osmData, bbox]);
 
   const generateSVGVisualization = () => {
-    if (!osmData || !bbox || !analysis) return null;
+    if (!osmData || !bbox || !analysis) {
+      return (
+        <div className="bg-gray-900 rounded-lg p-3 border border-gray-600">
+          <h4 className="text-sm font-medium text-white mb-3">区域可视化</h4>
+          <div className="w-full h-48 bg-gray-800 rounded border border-gray-600 flex items-center justify-center">
+            <p className="text-gray-500 text-xs">选择区域后显示可视化</p>
+          </div>
+        </div>
+      );
+    }
 
     const svgWidth = 280;
     const svgHeight = 200;
@@ -168,9 +177,13 @@ export const DataVisualization: React.FC<DataVisualizationProps> = ({ osmData, b
         <svg width={svgWidth} height={svgHeight} className="border border-gray-600 rounded bg-gray-800 w-full">
           {/* 背景网格 */}
           <defs>
-            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" strokeWidth="0.5"/>
+            <pattern id="grid" width="15" height="15" patternUnits="userSpaceOnUse">
+              <path d="M 15 0 L 0 0 0 15" fill="none" stroke="#374151" strokeWidth="0.5"/>
             </pattern>
+            <linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{stopColor:"#3B82F6", stopOpacity:1}} />
+              <stop offset="100%" style={{stopColor:"#1D4ED8", stopOpacity:1}} />
+            </linearGradient>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
           
@@ -181,19 +194,20 @@ export const DataVisualization: React.FC<DataVisualizationProps> = ({ osmData, b
             width={svgWidth - 2 * padding}
             height={svgHeight - 2 * padding}
             fill="none"
-            stroke="#3B82F6"
-            strokeWidth="2"
-            strokeDasharray="5,5"
+            stroke="url(#borderGradient)"
+            strokeWidth="3"
+            strokeDasharray="8,4"
+            rx="4"
           />
           
           {/* OSM元素 */}
           {elements}
           
           {/* 坐标标签 */}
-          <text x={padding} y={padding - 2} fontSize="8" fill="#9CA3AF">
+          <text x={padding + 2} y={padding - 2} fontSize="9" fill="#60A5FA" fontWeight="500">
             {bbox.north.toFixed(4)}, {bbox.west.toFixed(4)}
           </text>
-          <text x={svgWidth - padding} y={svgHeight - 2} fontSize="8" fill="#9CA3AF" textAnchor="end">
+          <text x={svgWidth - padding - 2} y={svgHeight - 2} fontSize="9" fill="#60A5FA" fontWeight="500" textAnchor="end">
             {bbox.south.toFixed(4)}, {bbox.east.toFixed(4)}
           </text>
         </svg>
@@ -315,12 +329,18 @@ export const DataVisualization: React.FC<DataVisualizationProps> = ({ osmData, b
 
           {/* 区域信息 */}
           {bbox && (
-            <div className="bg-green-900 bg-opacity-30 border border-green-700 rounded-lg p-3">
-              <h4 className="text-green-300 text-sm font-medium mb-2">选择区域信息</h4>
-              <div className="text-xs text-green-400 space-y-1">
+            <div className="bg-gradient-to-r from-green-900/40 to-emerald-900/40 border border-green-600/50 rounded-lg p-4 backdrop-blur-sm">
+              <h4 className="text-green-300 text-sm font-semibold mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                选择区域信息
+              </h4>
+              <div className="text-xs text-green-200 space-y-2">
                 <p>坐标: {bbox.south.toFixed(4)}, {bbox.west.toFixed(4)} 到 {bbox.north.toFixed(4)}, {bbox.east.toFixed(4)}</p>
                 <p>
                   大小: {((bbox.east - bbox.west) * 111320 * Math.cos(bbox.north * Math.PI / 180)).toFixed(0)}m × {((bbox.north - bbox.south) * 111320).toFixed(0)}m
+                </p>
+                <p className="text-green-300 font-medium">
+                  面积: {(((bbox.east - bbox.west) * 111320 * Math.cos(bbox.north * Math.PI / 180)) * ((bbox.north - bbox.south) * 111320) / 1000000).toFixed(2)} km²
                 </p>
               </div>
             </div>
