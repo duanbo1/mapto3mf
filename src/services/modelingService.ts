@@ -6,6 +6,7 @@ export class ModelingService {
   private models: Model3D[] = [];
   private centerPoint: [number, number] = [0, 0];
   private scale: number = 1;
+  private selectedBBox: BoundingBox | null = null;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -14,19 +15,59 @@ export class ModelingService {
   async generateModels(osmData: OSMData, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): Promise<Model3D[]> {
     this.clearModels();
     
-    // 设置坐标系统
+    // 设置坐标系统和选择区域
     this.centerPoint = basicConfig.coordinateSystem.centerPoint;
     this.scale = basicConfig.coordinateSystem.scale * basicConfig.renderHeight;
+    this.selectedBBox = bbox;
     
     // 首先生成底盘平台
     this.generateBasePlatform(bbox, basicConfig, modelConfig);
     
-    // 处理OSM元素
+    // 处理OSM元素，只渲染在选择区域内的元素
     osmData.elements.forEach(element => {
-      this.processElement(element, basicConfig, modelConfig, bbox);
+      if (this.isElementInBounds(element, bbox)) {
+        this.processElement(element, basicConfig, modelConfig, bbox);
+      }
     });
 
     return this.models;
+  }
+
+  private isElementInBounds(element: OSMElement, bbox: BoundingBox): boolean {
+    if (!element.geometry || element.geometry.length === 0) return false;
+
+    // 检查元素的几何体是否与选择区域相交
+    for (const point of element.geometry) {
+      if (point.lat >= bbox.south && point.lat <= bbox.north &&
+          point.lon >= bbox.west && point.lon <= bbox.east) {
+        return true;
+      }
+    }
+
+    // 如果没有点在区域内，检查是否有线段穿过区域
+    if (element.geometry.length > 1) {
+      for (let i = 0; i < element.geometry.length - 1; i++) {
+        const p1 = element.geometry[i];
+        const p2 = element.geometry[i + 1];
+        
+        if (this.lineIntersectsBounds(p1, p2, bbox)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private lineIntersectsBounds(p1: {lat: number, lon: number}, p2: {lat: number, lon: number}, bbox: BoundingBox): boolean {
+    // 简化的线段与矩形相交检测
+    const minLat = Math.min(p1.lat, p2.lat);
+    const maxLat = Math.max(p1.lat, p2.lat);
+    const minLon = Math.min(p1.lon, p2.lon);
+    const maxLon = Math.max(p1.lon, p2.lon);
+
+    return !(maxLat < bbox.south || minLat > bbox.north || 
+             maxLon < bbox.west || minLon > bbox.east);
   }
 
   private generateBasePlatform(bbox: BoundingBox, basicConfig: BasicConfig, modelConfig: ModelConfig): void {
@@ -35,8 +76,18 @@ export class ModelingService {
     const width = this.calculateDistance(bbox.west, bbox.south, bbox.east, bbox.south) * this.scale;
     const height = this.calculateDistance(bbox.west, bbox.south, bbox.west, bbox.north) * this.scale;
     
-    // 创建更美观的地形基础
-    const geometry = new THREE.BoxGeometry(width, modelConfig.terrain.baseHeight * this.scale, height);
+    // 创建更美观的地形基础，形状根据选择区域调整
+    let geometry: THREE.BufferGeometry;
+    
+    // 根据选择区域的形状创建不同的底盘
+    const aspectRatio = width / height;
+    if (Math.abs(aspectRatio - 1) < 0.1) {
+      // 接近正方形，创建圆角矩形
+      geometry = this.createRoundedBoxGeometry(width, modelConfig.terrain.baseHeight * this.scale, height, 0.1 * this.scale);
+    } else {
+      // 普通矩形
+      geometry = new THREE.BoxGeometry(width, modelConfig.terrain.baseHeight * this.scale, height);
+    }
     
     // 根据配置选择材质
     let material: THREE.Material;
@@ -79,6 +130,33 @@ export class ModelingService {
     });
   }
 
+  private createRoundedBoxGeometry(width: number, height: number, depth: number, radius: number): THREE.BufferGeometry {
+    // 创建圆角矩形几何体的简化版本
+    const shape = new THREE.Shape();
+    const x = -width / 2;
+    const y = -depth / 2;
+    const w = width;
+    const h = depth;
+    const r = Math.min(radius, Math.min(w, h) / 2);
+
+    shape.moveTo(x, y + r);
+    shape.lineTo(x, y + h - r);
+    shape.quadraticCurveTo(x, y + h, x + r, y + h);
+    shape.lineTo(x + w - r, y + h);
+    shape.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+    shape.lineTo(x + w, y + r);
+    shape.quadraticCurveTo(x + w, y, x + w - r, y);
+    shape.lineTo(x + r, y);
+    shape.quadraticCurveTo(x, y, x, y + r);
+
+    const extrudeSettings = {
+      depth: height,
+      bevelEnabled: false,
+    };
+
+    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  }
+
   private processElement(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.tags || !element.geometry) return;
 
@@ -110,13 +188,33 @@ export class ModelingService {
     }
   }
 
+  private clipGeometryToBounds(points: {x: number, z: number}[], bbox: BoundingBox): {x: number, z: number}[] {
+    // 简化的几何体裁剪，只保留在边界内的点
+    const clippedPoints: {x: number, z: number}[] = [];
+    
+    for (const point of points) {
+      // 将本地坐标转换回经纬度进行检查
+      const lon = point.x / (111320 * Math.cos(this.centerPoint[1] * Math.PI / 180) * this.scale) + this.centerPoint[0];
+      const lat = -point.z / (111320 * this.scale) + this.centerPoint[1];
+      
+      if (lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east) {
+        clippedPoints.push(point);
+      }
+    }
+    
+    return clippedPoints;
+  }
+
   private createBuilding(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 3) return;
 
-    const points = element.geometry.map(point => 
+    let points = element.geometry.map(point => 
       this.latLonToLocal(point.lat, point.lon, bbox)
     );
 
+    // 裁剪到选择区域
+    points = this.clipGeometryToBounds(points, bbox);
+    
     if (points.length < 3) return;
 
     // 创建建筑轮廓
@@ -195,7 +293,7 @@ export class ModelingService {
   private createRoad(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 2) return;
 
-    const points = element.geometry.map(point => 
+    let points = element.geometry.map(point => 
       this.latLonToLocal(point.lat, point.lon, bbox)
     );
 
@@ -210,6 +308,12 @@ export class ModelingService {
     for (let i = 0; i < points.length - 1; i++) {
       const start = points[i];
       const end = points[i + 1];
+      
+      // 检查线段是否在选择区域内
+      const startInBounds = this.isPointInBounds(start, bbox);
+      const endInBounds = this.isPointInBounds(end, bbox);
+      
+      if (!startInBounds && !endInBounds) continue;
       
       const distance = Math.sqrt(
         Math.pow(end.x - start.x, 2) + Math.pow(end.z - start.z, 2)
@@ -256,6 +360,14 @@ export class ModelingService {
     }
   }
 
+  private isPointInBounds(point: {x: number, z: number}, bbox: BoundingBox): boolean {
+    // 将本地坐标转换回经纬度进行检查
+    const lon = point.x / (111320 * Math.cos(this.centerPoint[1] * Math.PI / 180) * this.scale) + this.centerPoint[0];
+    const lat = -point.z / (111320 * this.scale) + this.centerPoint[1];
+    
+    return lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east;
+  }
+
   private createBridge(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 2) return;
 
@@ -266,6 +378,12 @@ export class ModelingService {
     for (let i = 0; i < points.length - 1; i++) {
       const start = points[i];
       const end = points[i + 1];
+      
+      // 检查线段是否在选择区域内
+      const startInBounds = this.isPointInBounds(start, bbox);
+      const endInBounds = this.isPointInBounds(end, bbox);
+      
+      if (!startInBounds && !endInBounds) continue;
       
       const distance = Math.sqrt(
         Math.pow(end.x - start.x, 2) + Math.pow(end.z - start.z, 2)
@@ -318,10 +436,13 @@ export class ModelingService {
   private createWater(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 3) return;
 
-    const points = element.geometry.map(point => 
+    let points = element.geometry.map(point => 
       this.latLonToLocal(point.lat, point.lon, bbox)
     );
 
+    // 裁剪到选择区域
+    points = this.clipGeometryToBounds(points, bbox);
+    
     if (points.length < 3) return;
 
     try {
@@ -369,10 +490,13 @@ export class ModelingService {
   private createVegetation(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 3) return;
 
-    const points = element.geometry.map(point => 
+    let points = element.geometry.map(point => 
       this.latLonToLocal(point.lat, point.lon, bbox)
     );
 
+    // 裁剪到选择区域
+    points = this.clipGeometryToBounds(points, bbox);
+    
     if (points.length < 3) return;
 
     try {
