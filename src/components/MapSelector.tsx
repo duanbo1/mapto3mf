@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { BoundingBox } from '../types';
-import { Search, Square, Circle, Polygon, Move, RotateCw, Trash2, MousePointer } from 'lucide-react';
+import { Search, Square, Circle, Hexagon as Polygon, Move, RotateCw, Trash2, MousePointer } from 'lucide-react';
 
 interface MapSelectorProps {
   onAreaSelected: (bbox: BoundingBox) => void;
