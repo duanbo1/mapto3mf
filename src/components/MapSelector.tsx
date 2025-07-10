@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { BoundingBox } from '../types';
-import { Search, Square, Circle, Hexagon as Polygon, Move, RotateCw, Trash2, MousePointer, Navigation, Eraser } from 'lucide-react';
+import { Search, Square, Circle, Hexagon as Polygon, Move, RotateCw, Trash2, MousePointer, Navigation, Eraser, Target } from 'lucide-react';
 
 interface MapSelectorProps {
   onAreaSelected: (bbox: BoundingBox) => void;
@@ -33,6 +33,9 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
   const [activeSelection, setActiveSelection] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
+  const [showShapePreview, setShowShapePreview] = useState(false);
+  const [previewCenter, setPreviewCenter] = useState<[number, number] | null>(null);
+  const [isInteractiveMode, setIsInteractiveMode] = useState(false);
 
   // 搜索地点
   const searchLocation = useCallback(async (query: string) => {
@@ -106,6 +109,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
     let startPoint: [number, number] | null = null;
     let currentDrawing: string | null = null;
+    let interactiveStartPoint: [number, number] | null = null;
 
     // 鼠标事件处理
     const onMouseDown = (e: maplibregl.MapMouseEvent) => {
@@ -122,14 +126,28 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
       const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       
       if (mapMode === 'select') {
-        startPoint = lngLat;
-        setIsDrawing(true);
-        
-        if (selectionShape === 'polygon' || selectionShape === 'freehand') {
-          setDrawingPoints([lngLat]);
+        if (isInteractiveMode && !interactiveStartPoint) {
+          // 交互式选择模式：第一次点击设置起始点
+          interactiveStartPoint = lngLat;
+          setPreviewCenter(lngLat);
+          setShowShapePreview(true);
+          
+          // 添加起始点标记
+          addPreviewPoint(lngLat);
+          return;
         }
         
-        map.current!.dragPan.disable();
+        if (!isInteractiveMode) {
+          // 传统拖拽模式
+          startPoint = lngLat;
+          setIsDrawing(true);
+          
+          if (selectionShape === 'polygon' || selectionShape === 'freehand') {
+            setDrawingPoints([lngLat]);
+          }
+          
+          map.current!.dragPan.disable();
+        }
       } else if (mapMode === 'erase') {
         // 检查点击位置是否在某个选择区域内
         const clickedSelection = findSelectionAtPoint(lngLat);
@@ -140,10 +158,16 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
     };
 
     const onMouseMove = (e: maplibregl.MapMouseEvent) => {
-      if (!isDrawing || !startPoint || mapMode !== 'select') return;
-
       const endPoint: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       
+      if (isInteractiveMode && interactiveStartPoint && showShapePreview) {
+        // 交互式模式：实时更新预览
+        updateShapePreview(interactiveStartPoint, endPoint);
+        return;
+      }
+      
+      if (!isDrawing || !startPoint || mapMode !== 'select') return;
+
       // 移除之前的临时绘制
       if (currentDrawing && map.current!.getSource('temp-selection')) {
         map.current!.removeLayer('temp-selection-fill');
@@ -223,10 +247,16 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
     };
 
     const onMouseUp = (e: maplibregl.MapMouseEvent) => {
-      if (!isDrawing || !startPoint || mapMode !== 'select') return;
-
       const endPoint: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       
+      if (isInteractiveMode && interactiveStartPoint) {
+        // 交互式模式：第二次点击完成选择
+        completeInteractiveSelection(interactiveStartPoint, endPoint);
+        return;
+      }
+      
+      if (!isDrawing || !startPoint || mapMode !== 'select') return;
+
       // 创建新的选择区域
       let coordinates: number[][];
       let center: [number, number];
@@ -333,7 +363,192 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
         map.current.remove();
       }
     };
-  }, [mapMode, selectionShape, isDrawing, drawingPoints, onAreaSelected]);
+  }, [mapMode, selectionShape, isDrawing, drawingPoints, onAreaSelected, isInteractiveMode, showShapePreview, previewCenter]);
+
+  // 添加预览点标记
+  const addPreviewPoint = (point: [number, number]) => {
+    if (!map.current) return;
+    
+    // 移除之前的预览点
+    if (map.current.getSource('preview-point')) {
+      map.current.removeLayer('preview-point');
+      map.current.removeSource('preview-point');
+    }
+    
+    map.current.addSource('preview-point', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Point',
+          coordinates: point
+        }
+      }
+    });
+
+    map.current.addLayer({
+      id: 'preview-point',
+      type: 'circle',
+      source: 'preview-point',
+      paint: {
+        'circle-radius': 8,
+        'circle-color': '#F59E0B',
+        'circle-stroke-width': 3,
+        'circle-stroke-color': '#FFFFFF',
+        'circle-opacity': 0.8
+      }
+    });
+  };
+
+  // 更新形状预览
+  const updateShapePreview = (start: [number, number], end: [number, number]) => {
+    if (!map.current) return;
+    
+    // 移除之前的预览
+    if (map.current.getSource('shape-preview')) {
+      map.current.removeLayer('shape-preview-fill');
+      map.current.removeLayer('shape-preview-outline');
+      map.current.removeSource('shape-preview');
+    }
+    
+    let coordinates: number[][];
+    
+    switch (selectionShape) {
+      case 'rectangle':
+        coordinates = [[
+          [Math.min(start[0], end[0]), Math.max(start[1], end[1])],
+          [Math.max(start[0], end[0]), Math.max(start[1], end[1])],
+          [Math.max(start[0], end[0]), Math.min(start[1], end[1])],
+          [Math.min(start[0], end[0]), Math.min(start[1], end[1])],
+          [Math.min(start[0], end[0]), Math.max(start[1], end[1])]
+        ]];
+        break;
+        
+      case 'circle':
+        const radius = Math.sqrt(
+          Math.pow(end[0] - start[0], 2) + Math.pow(end[1] - start[1], 2)
+        );
+        coordinates = [createCircleCoordinates(start, radius)];
+        break;
+        
+      default:
+        return;
+    }
+    
+    map.current.addSource('shape-preview', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: coordinates
+        }
+      }
+    });
+
+    map.current.addLayer({
+      id: 'shape-preview-fill',
+      type: 'fill',
+      source: 'shape-preview',
+      paint: {
+        'fill-color': '#F59E0B',
+        'fill-opacity': 0.25
+      }
+    });
+
+    map.current.addLayer({
+      id: 'shape-preview-outline',
+      type: 'line',
+      source: 'shape-preview',
+      paint: {
+        'line-color': '#F59E0B',
+        'line-width': 3,
+        'line-opacity': 0.8,
+        'line-dasharray': [5, 5]
+      }
+    });
+  };
+
+  // 完成交互式选择
+  const completeInteractiveSelection = (start: [number, number], end: [number, number]) => {
+    let coordinates: number[][];
+    let center: [number, number];
+    let radius: number | undefined;
+    let bbox: BoundingBox;
+    
+    switch (selectionShape) {
+      case 'rectangle':
+        coordinates = [[
+          [Math.min(start[0], end[0]), Math.max(start[1], end[1])],
+          [Math.max(start[0], end[0]), Math.max(start[1], end[1])],
+          [Math.max(start[0], end[0]), Math.min(start[1], end[1])],
+          [Math.min(start[0], end[0]), Math.min(start[1], end[1])],
+          [Math.min(start[0], end[0]), Math.max(start[1], end[1])]
+        ]];
+        center = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
+        bbox = {
+          west: Math.min(start[0], end[0]),
+          south: Math.min(start[1], end[1]),
+          east: Math.max(start[0], end[0]),
+          north: Math.max(start[1], end[1])
+        };
+        break;
+        
+      case 'circle':
+        radius = Math.sqrt(
+          Math.pow(end[0] - start[0], 2) + Math.pow(end[1] - start[1], 2)
+        );
+        coordinates = [createCircleCoordinates(start, radius)];
+        center = start;
+        bbox = {
+          west: start[0] - radius,
+          south: start[1] - radius,
+          east: start[0] + radius,
+          north: start[1] + radius
+        };
+        break;
+        
+      default:
+        return;
+    }
+
+    // 添加到选择列表
+    const newSelection: Selection = {
+      id: `selection-${Date.now()}`,
+      shape: selectionShape,
+      coordinates,
+      center,
+      radius,
+      bbox
+    };
+
+    addSelection(newSelection);
+    onAreaSelected(bbox);
+    
+    // 清理预览
+    clearPreviews();
+    setIsInteractiveMode(false);
+    setShowShapePreview(false);
+    setPreviewCenter(null);
+  };
+
+  // 清理预览
+  const clearPreviews = () => {
+    if (!map.current) return;
+    
+    if (map.current.getSource('preview-point')) {
+      map.current.removeLayer('preview-point');
+      map.current.removeSource('preview-point');
+    }
+    
+    if (map.current.getSource('shape-preview')) {
+      map.current.removeLayer('shape-preview-fill');
+      map.current.removeLayer('shape-preview-outline');
+      map.current.removeSource('shape-preview');
+    }
+  };
 
   // 创建圆形坐标
   const createCircleCoordinates = (center: [number, number], radius: number): number[][] => {
@@ -442,13 +657,23 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
     }
   };
 
+  // 处理形状选择
+  const handleShapeSelect = (shape: SelectionShape) => {
+    setSelectionShape(shape);
+    if (mapMode === 'select') {
+      // 启用交互式模式
+      setIsInteractiveMode(true);
+      clearPreviews();
+    }
+  };
+
   // 获取模式图标
   const getModeIcon = (mode: MapMode) => {
     switch (mode) {
       case 'browse':
         return <Navigation className="h-5 w-5" />;
       case 'select':
-        return <Square className="h-5 w-5" />;
+        return <Target className="h-5 w-5" />;
       case 'move':
         return <Move className="h-5 w-5" />;
       case 'rotate':
@@ -521,7 +746,11 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
           {/* 模式选择 */}
           <div className="grid grid-cols-3 gap-3">
             <button
-              onClick={() => setMapMode('browse')}
+              onClick={() => {
+                setMapMode('browse');
+                setIsInteractiveMode(false);
+                clearPreviews();
+              }}
               className={`flex flex-col items-center gap-2 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
                 mapMode === 'browse' 
                   ? 'bg-blue-600 text-white shadow-blue-500/25 scale-105 ring-2 ring-blue-400' 
@@ -532,7 +761,11 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               浏览
             </button>
             <button
-              onClick={() => setMapMode('select')}
+              onClick={() => {
+                setMapMode('select');
+                setIsInteractiveMode(false);
+                clearPreviews();
+              }}
               className={`flex flex-col items-center gap-2 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
                 mapMode === 'select' 
                   ? 'bg-green-600 text-white shadow-green-500/25 scale-105 ring-2 ring-green-400' 
@@ -543,7 +776,11 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               选择
             </button>
             <button
-              onClick={() => setMapMode('erase')}
+              onClick={() => {
+                setMapMode('erase');
+                setIsInteractiveMode(false);
+                clearPreviews();
+              }}
               className={`flex flex-col items-center gap-2 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
                 mapMode === 'erase' 
                   ? 'bg-red-600 text-white shadow-red-500/25 scale-105 ring-2 ring-red-400' 
@@ -561,7 +798,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               <div className="text-sm text-gray-300 mb-3 text-center font-medium">选择形状</div>
               <div className="grid grid-cols-4 gap-2">
                 <button
-                  onClick={() => setSelectionShape('rectangle')}
+                  onClick={() => handleShapeSelect('rectangle')}
                   className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                     selectionShape === 'rectangle' 
                       ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
@@ -572,7 +809,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
                   矩形
                 </button>
                 <button
-                  onClick={() => setSelectionShape('circle')}
+                  onClick={() => handleShapeSelect('circle')}
                   className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                     selectionShape === 'circle' 
                       ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
@@ -583,7 +820,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
                   圆形
                 </button>
                 <button
-                  onClick={() => setSelectionShape('polygon')}
+                  onClick={() => handleShapeSelect('polygon')}
                   className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                     selectionShape === 'polygon' 
                       ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
@@ -594,7 +831,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
                   多边形
                 </button>
                 <button
-                  onClick={() => setSelectionShape('freehand')}
+                  onClick={() => handleShapeSelect('freehand')}
                   className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
                     selectionShape === 'freehand' 
                       ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
@@ -620,10 +857,11 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
             </div>
             <div className="text-gray-300">
               {mapMode === 'browse' && '拖拽浏览地图，滚轮缩放，中键也可拖拽'}
-              {mapMode === 'select' && selectionShape === 'rectangle' && '按住鼠标左键拖拽选择矩形区域'}
-              {mapMode === 'select' && selectionShape === 'circle' && '按住鼠标左键拖拽选择圆形区域'}
-              {mapMode === 'select' && selectionShape === 'polygon' && '点击添加多边形顶点，双击完成'}
-              {mapMode === 'select' && selectionShape === 'freehand' && '按住鼠标左键自由绘制区域'}
+              {mapMode === 'select' && !isInteractiveMode && selectionShape === 'rectangle' && '按住鼠标左键拖拽选择矩形区域'}
+              {mapMode === 'select' && !isInteractiveMode && selectionShape === 'circle' && '按住鼠标左键拖拽选择圆形区域'}
+              {mapMode === 'select' && !isInteractiveMode && selectionShape === 'polygon' && '点击添加多边形顶点，双击完成'}
+              {mapMode === 'select' && !isInteractiveMode && selectionShape === 'freehand' && '按住鼠标左键自由绘制区域'}
+              {mapMode === 'select' && isInteractiveMode && '点击地图设置起始点，移动鼠标调整大小，再次点击完成选择'}
               {mapMode === 'erase' && '点击选择区域删除'}
             </div>
           </div>
@@ -635,7 +873,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
             ref={mapContainer}
             className="w-full h-full"
             style={{ 
-              cursor: mapMode === 'select' ? 'crosshair' : 
+              cursor: mapMode === 'select' ? (isInteractiveMode ? 'crosshair' : 'crosshair') : 
                      mapMode === 'erase' ? 'pointer' : 
                      mapMode === 'move' ? 'move' :
                      mapMode === 'rotate' ? 'grab' : 'grab' 
@@ -690,6 +928,17 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* 交互式选择状态指示器 */}
+          {isInteractiveMode && showShapePreview && (
+            <div className="absolute top-4 right-4 bg-orange-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium">
+                {selectionShape === 'rectangle' ? '拖拽调整矩形大小' :
+                 selectionShape === 'circle' ? '拖拽调整圆形半径' : '调整形状大小'}
+              </span>
             </div>
           )}
 

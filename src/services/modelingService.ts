@@ -553,6 +553,10 @@ export class ModelingService {
       return null;
     }
 
+    // 确保几何体计算了边界盒
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
     // 创建包含完整几何数据的对象
     const exportGeometry = {
       attributes: {
@@ -575,6 +579,16 @@ export class ModelingService {
         itemSize: geometry.attributes.normal.itemSize,
         count: geometry.attributes.normal.count
       };
+    } else {
+      // 如果没有法向量，计算它们
+      geometry.computeVertexNormals();
+      if (geometry.attributes.normal) {
+        exportGeometry.attributes.normal = {
+          array: new Float32Array(geometry.attributes.normal.array),
+          itemSize: geometry.attributes.normal.itemSize,
+          count: geometry.attributes.normal.count
+        };
+      }
     }
 
     return exportGeometry;
