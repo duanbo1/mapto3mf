@@ -117,7 +117,7 @@ export class ModelingService {
     
     this.scene.add(platform);
     
-    // 更新地形高度基准
+    // 更新地形高度基准 - 底盘顶部的y坐标
     this.terrainHeight = platformHeight;
     
     this.models.push({
@@ -128,7 +128,7 @@ export class ModelingService {
       position: [0, platformHeight / 2, 0]
     });
     
-    console.log('底盘生成完成，地形高度基准:', this.terrainHeight);
+    console.log('底盘生成完成，地形高度基准(底盘顶部):', this.terrainHeight);
   }
 
   private createRoundedBoxGeometry(width: number, height: number, depth: number, radius: number): THREE.BufferGeometry {
@@ -256,8 +256,8 @@ export class ModelingService {
       
       const building = new THREE.Mesh(geometry, material);
       building.rotation.x = -Math.PI / 2;
-      // 建筑底部紧贴底盘顶部
-      building.position.y = height / 2;
+      // 建筑底部紧贴底盘顶部，建筑中心在底盘顶部 + 建筑高度/2
+      building.position.y = this.terrainHeight + height / 2;
       building.castShadow = true;
       building.receiveShadow = true;
       building.add(wireframe);
@@ -280,6 +280,14 @@ export class ModelingService {
         geometry: this.createExportableGeometry(geometry, building.position),
         material,
         position: [building.position.x, building.position.y, building.position.z]
+      });
+      
+      console.log(`建筑 ${element.id} 位置:`, {
+        x: building.position.x,
+        y: building.position.y,
+        z: building.position.z,
+        terrainHeight: this.terrainHeight,
+        buildingHeight: height
       });
     } catch (error) {
       console.warn('创建建筑时出错:', error);
@@ -339,10 +347,10 @@ export class ModelingService {
       
       const road = new THREE.Mesh(geometry, material);
       
-      // 道路紧贴底盘顶部
+      // 道路紧贴底盘顶部，道路中心在底盘顶部 + 道路厚度/2
       road.position.set(
         (start.x + end.x) / 2,
-        roadConfig.height * this.scale / 2,
+        this.terrainHeight + roadConfig.height * this.scale / 2,
         (start.z + end.z) / 2
       );
       
@@ -359,6 +367,14 @@ export class ModelingService {
         material,
         position: [road.position.x, road.position.y, road.position.z],
         rotation: [0, angle, 0]
+      });
+      
+      console.log(`道路段 ${element.id}-${i} 位置:`, {
+        x: road.position.x,
+        y: road.position.y,
+        z: road.position.z,
+        terrainHeight: this.terrainHeight,
+        roadHeight: roadConfig.height * this.scale
       });
     }
   }
@@ -401,10 +417,10 @@ export class ModelingService {
       
       const bridge = new THREE.Mesh(bridgeGeometry, bridgeMaterial);
       
-      // 桥梁高于底盘
+      // 桥梁高于底盘，桥梁中心在底盘顶部 + 桥梁高度/2 + 额外高度
       bridge.position.set(
         (start.x + end.x) / 2,
-        modelConfig.bridges.height * this.scale / 2 + 2 * this.scale,
+        this.terrainHeight + modelConfig.bridges.height * this.scale / 2 + 2 * this.scale,
         (start.z + end.z) / 2
       );
       
@@ -427,6 +443,13 @@ export class ModelingService {
         material: bridgeMaterial,
         position: [bridge.position.x, bridge.position.y, bridge.position.z],
         rotation: [0, angle, 0]
+      });
+      
+      console.log(`桥梁 ${element.id}-${i} 位置:`, {
+        x: bridge.position.x,
+        y: bridge.position.y,
+        z: bridge.position.z,
+        terrainHeight: this.terrainHeight
       });
     }
   }
@@ -468,7 +491,7 @@ export class ModelingService {
       const water = new THREE.Mesh(geometry, material);
       water.rotation.x = -Math.PI / 2;
       // 水面紧贴底盘顶部
-      water.position.y = modelConfig.water.height * this.scale;
+      water.position.y = this.terrainHeight + modelConfig.water.height * this.scale;
       
       // 添加水面波纹效果
       if (modelConfig.water.waveConfig.enabled) {
@@ -483,6 +506,13 @@ export class ModelingService {
         geometry: this.createExportableGeometry(geometry, water.position),
         material,
         position: [water.position.x, water.position.y, water.position.z]
+      });
+      
+      console.log(`水体 ${element.id} 位置:`, {
+        x: water.position.x,
+        y: water.position.y,
+        z: water.position.z,
+        terrainHeight: this.terrainHeight
       });
     } catch (error) {
       console.warn('创建水体时出错:', error);
@@ -523,7 +553,7 @@ export class ModelingService {
       const vegetation = new THREE.Mesh(geometry, material);
       vegetation.rotation.x = -Math.PI / 2;
       // 植被紧贴底盘顶部
-      vegetation.position.y = modelConfig.vegetation.height * this.scale / 2;
+      vegetation.position.y = this.terrainHeight + modelConfig.vegetation.height * this.scale / 2;
       vegetation.receiveShadow = true;
       
       // 添加随机树木
@@ -539,6 +569,13 @@ export class ModelingService {
         geometry: this.createExportableGeometry(geometry, vegetation.position),
         material,
         position: [vegetation.position.x, vegetation.position.y, vegetation.position.z]
+      });
+      
+      console.log(`植被 ${element.id} 位置:`, {
+        x: vegetation.position.x,
+        y: vegetation.position.y,
+        z: vegetation.position.z,
+        terrainHeight: this.terrainHeight
       });
     } catch (error) {
       console.warn('创建植被时出错:', error);
@@ -634,7 +671,7 @@ export class ModelingService {
 
   private addBridgePillars(bridge: THREE.Mesh, start: any, end: any, pillarConfig: any, distance: number): void {
     const pillarCount = Math.floor(distance / pillarConfig.spacing);
-    const pillarHeight = bridge.position.y;
+    const pillarHeight = bridge.position.y - this.terrainHeight;
     
     for (let i = 0; i <= pillarCount; i++) {
       const t = i / Math.max(pillarCount, 1);
@@ -649,7 +686,7 @@ export class ModelingService {
       const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
       pillar.position.set(
         start.x + (end.x - start.x) * t,
-        pillarHeight / 2,
+        this.terrainHeight + pillarHeight / 2,
         start.z + (end.z - start.z) * t
       );
       pillar.castShadow = true;
@@ -672,7 +709,7 @@ export class ModelingService {
       const ripple = new THREE.Mesh(rippleGeometry, rippleMaterial);
       ripple.position.set(
         points[Math.floor(Math.random() * points.length)].x,
-        water.position.y + 0.01 * this.scale,
+        this.terrainHeight + 0.01 * this.scale,
         points[Math.floor(Math.random() * points.length)].z
       );
       ripple.rotation.x = -Math.PI / 2;
@@ -703,16 +740,16 @@ export class ModelingService {
       const crown = new THREE.Mesh(crownGeometry, crownMaterial);
       
       const randomOffset = vegetationConfig.treeConfig.randomness * this.scale;
-      // 树木紧贴底盘顶部
+      // 树木紧贴底盘顶部，树干中心在底盘顶部 + 树干高度/2
       trunk.position.set(
         randomPoint.x + (Math.random() - 0.5) * randomOffset,
-        vegetationConfig.height * 0.3 * this.scale,
+        this.terrainHeight + vegetationConfig.height * 0.3 * this.scale,
         randomPoint.z + (Math.random() - 0.5) * randomOffset
       );
       
       crown.position.set(
         trunk.position.x,
-        vegetationConfig.height * 0.8 * this.scale,
+        this.terrainHeight + vegetationConfig.height * 0.8 * this.scale,
         trunk.position.z
       );
       
