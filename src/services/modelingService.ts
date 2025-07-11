@@ -75,37 +75,30 @@ export class ModelingService {
   private generateBasePlatform(bbox: BoundingBox, basicConfig: BasicConfig, modelConfig: ModelConfig): void {
     if (!modelConfig.terrain.enabled) return;
 
-    const width = this.calculateDistance(bbox.west, bbox.south, bbox.east, bbox.south) * this.scale;
-    const height = this.calculateDistance(bbox.west, bbox.south, bbox.west, bbox.north) * this.scale;
+    // 计算实际地理距离并转换为模型尺寸
+    const width = this.calculateDistance(bbox.west, bbox.south, bbox.east, bbox.south);
+    const depth = this.calculateDistance(bbox.west, bbox.south, bbox.west, bbox.north);
+    const platformHeight = modelConfig.terrain.baseHeight;
     
-    // 创建更美观的地形基础，形状根据选择区域调整
+    console.log('底盘尺寸:', { width: width.toFixed(2), depth: depth.toFixed(2), height: platformHeight });
+    
+    // 创建地形基础
     let geometry: THREE.BufferGeometry;
     
-    // 根据选择区域的形状创建不同的底盘
-    const aspectRatio = width / height;
+    const aspectRatio = width / depth;
     if (Math.abs(aspectRatio - 1) < 0.1) {
       // 接近正方形，创建圆角矩形
-      geometry = this.createRoundedBoxGeometry(width, modelConfig.terrain.baseHeight * this.scale, height, 0.1 * this.scale);
+      geometry = this.createRoundedBoxGeometry(width, platformHeight, depth, Math.min(width, depth) * 0.05);
     } else {
       // 普通矩形
-      geometry = new THREE.BoxGeometry(width, modelConfig.terrain.baseHeight * this.scale, height);
+      geometry = new THREE.BoxGeometry(width, platformHeight, depth);
     }
     
-    // 根据配置选择材质
-    let material: THREE.Material;
-    if (modelConfig.terrain.textureConfig.enabled) {
-      material = new THREE.MeshLambertMaterial({ 
-        color: modelConfig.terrain.color,
-        transparent: true,
-        opacity: 0.9
-      });
-    } else {
-      material = new THREE.MeshLambertMaterial({ 
-        color: basicConfig.baseColor,
-        transparent: true,
-        opacity: 0.9
-      });
-    }
+    const material = new THREE.MeshLambertMaterial({ 
+      color: modelConfig.terrain.textureConfig.enabled ? modelConfig.terrain.color : basicConfig.baseColor,
+      transparent: true,
+      opacity: 0.9
+    });
     
     // 添加边缘高光
     const edges = new THREE.EdgesGeometry(geometry);
@@ -117,19 +110,25 @@ export class ModelingService {
     const wireframe = new THREE.LineSegments(edges, lineMaterial);
     
     const platform = new THREE.Mesh(geometry, material);
-    platform.position.set(0, -modelConfig.terrain.baseHeight * this.scale / 2, 0);
+    // 底盘底部在y=0，顶部在y=platformHeight
+    platform.position.set(0, platformHeight / 2, 0);
     platform.receiveShadow = true;
     platform.add(wireframe);
     
     this.scene.add(platform);
+    
+    // 更新地形高度基准
+    this.terrainHeight = platformHeight;
     
     this.models.push({
       id: 'base-platform',
       type: 'terrain',
       geometry: this.createExportableGeometry(geometry, platform.position),
       material,
-      position: [0, -modelConfig.terrain.baseHeight * this.scale / 2, 0]
+      position: [0, platformHeight / 2, 0]
     });
+    
+    console.log('底盘生成完成，地形高度基准:', this.terrainHeight);
   }
 
   private createRoundedBoxGeometry(width: number, height: number, depth: number, radius: number): THREE.BufferGeometry {

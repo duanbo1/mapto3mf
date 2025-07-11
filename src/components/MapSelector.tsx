@@ -112,17 +112,25 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
     // 鼠标事件处理
     const onMouseDown = (e: maplibregl.MapMouseEvent) => {
-      // 中键拖拽支持
+      // 中键拖拽支持 - 在任何模式下都允许
       if (e.originalEvent.button === 1) {
         e.originalEvent.preventDefault();
         return;
       }
 
+      // 右键也允许拖拽
+      if (e.originalEvent.button === 2) {
+        return;
+      }
+
+      // 只处理左键点击
+      if (e.originalEvent.button !== 0) return;
+
+      const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      
       if (mapMode === 'browse') {
         return;
       }
-      
-      const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       
       if (mapMode === 'select') {
         if (isInteractiveMode) {
@@ -146,6 +154,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
             setDrawingPoints([lngLat]);
           }
           
+          // 只在非交互模式下禁用拖拽
           map.current!.dragPan.disable();
         }
       } else if (mapMode === 'erase') {
@@ -300,6 +309,11 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
       }
     };
 
+    // 中键拖拽处理
+    const onWheel = (e: WheelEvent) => {
+      // 允许滚轮缩放
+    };
+
     map.current.on('mousedown', onMouseDown);
     map.current.on('mousemove', onMouseMove);
     map.current.on('mouseup', onMouseUp);
@@ -333,8 +347,8 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
       type: 'fill',
       source: 'temp-selection',
       paint: {
-        'fill-color': '#3B82F6',
-        'fill-opacity': 0.2
+        'fill-color': '#F59E0B',
+        'fill-opacity': 0.25
       }
     });
 
@@ -343,9 +357,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
       type: 'line',
       source: 'temp-selection',
       paint: {
-        'line-color': '#3B82F6',
+        'line-color': '#F59E0B',
         'line-width': 3,
-        'line-opacity': 0.8
+        'line-opacity': 1,
+        'line-dasharray': [5, 5]
       }
     });
   };
@@ -450,7 +465,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
       paint: {
         'line-color': '#F59E0B',
         'line-width': 3,
-        'line-opacity': 0.8,
+        'line-opacity': 1,
         'line-dasharray': [5, 5]
       }
     });
@@ -592,7 +607,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
         source: selection.id,
         paint: {
           'line-color': '#10B981',
-          'line-width': 3,
+          'line-width': 4,
           'line-opacity': 1
         }
       });
@@ -693,7 +708,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
     if (mapMode === 'erase') return 'pointer';
     if (mapMode === 'select') {
       if (isInteractiveMode) {
-        return interactiveStartPoint ? 'crosshair' : 'crosshair';
+        return 'crosshair';
       }
       return 'crosshair';
     }
@@ -702,8 +717,8 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
   return (
     <div className={`${className} flex flex-col h-full`}>
-      {/* 工具栏 */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4 space-y-4 flex-shrink-0">
+      {/* 工具栏 - 固定高度 */}
+      <div className="bg-gray-800 border-b border-gray-700 p-3 space-y-3 flex-shrink-0">
         {/* 搜索框 */}
         <div className="relative">
           <div className="relative">
@@ -713,7 +728,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               placeholder="搜索地点..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
             {isSearching && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -724,14 +739,14 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
           
           {/* 搜索结果 */}
           {searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 max-h-60 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
               {searchResults.map((result, index) => (
                 <button
                   key={index}
                   onClick={() => handleSearchResultClick(result)}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-600 border-b border-gray-600 last:border-b-0 transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-600 border-b border-gray-600 last:border-b-0 transition-colors"
                 >
-                  <div className="text-white text-sm font-medium">{result.display_name}</div>
+                  <div className="text-white text-sm font-medium truncate">{result.display_name}</div>
                   <div className="text-gray-400 text-xs mt-1">
                     {result.type} • {parseFloat(result.lat).toFixed(4)}, {parseFloat(result.lon).toFixed(4)}
                   </div>
@@ -742,16 +757,16 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
         </div>
 
         {/* 模式选择 */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => {
               setMapMode('browse');
               clearInteractiveMode();
             }}
-            className={`flex flex-col items-center gap-2 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
               mapMode === 'browse' 
-                ? 'bg-blue-600 text-white shadow-blue-500/25 scale-105 ring-2 ring-blue-400' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-102 hover:shadow-xl'
+                ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
           >
             {getModeIcon('browse')}
@@ -760,12 +775,13 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
           <button
             onClick={() => {
               setMapMode('select');
+              setIsInteractiveMode(true);
               clearInteractiveMode();
             }}
-            className={`flex flex-col items-center gap-2 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
               mapMode === 'select' 
-                ? 'bg-green-600 text-white shadow-green-500/25 scale-105 ring-2 ring-green-400' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-102 hover:shadow-xl'
+                ? 'bg-green-600 text-white shadow-lg scale-105' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
           >
             {getModeIcon('select')}
@@ -776,10 +792,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               setMapMode('erase');
               clearInteractiveMode();
             }}
-            className={`flex flex-col items-center gap-2 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
               mapMode === 'erase' 
-                ? 'bg-red-600 text-white shadow-red-500/25 scale-105 ring-2 ring-red-400' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-102 hover:shadow-xl'
+                ? 'bg-red-600 text-white shadow-lg scale-105' 
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
           >
             {getModeIcon('erase')}
@@ -789,15 +805,15 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
         {/* 形状选择 */}
         {mapMode === 'select' && (
-          <div className="p-4 bg-gray-700 rounded-xl border border-gray-600 shadow-inner">
-            <div className="text-sm text-gray-300 mb-3 text-center font-medium">选择形状</div>
-            <div className="grid grid-cols-4 gap-2">
+          <div className="p-3 bg-gray-700 rounded-lg border border-gray-600">
+            <div className="text-xs text-gray-300 mb-2 text-center font-medium">选择形状</div>
+            <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => handleShapeSelect('rectangle')}
-                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
+                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs transition-all duration-200 ${
                   selectionShape === 'rectangle' 
-                    ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
-                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
                 }`}
               >
                 {getShapeIcon('rectangle')}
@@ -805,10 +821,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               </button>
               <button
                 onClick={() => handleShapeSelect('circle')}
-                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
+                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs transition-all duration-200 ${
                   selectionShape === 'circle' 
-                    ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
-                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
                 }`}
               >
                 {getShapeIcon('circle')}
@@ -816,10 +832,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               </button>
               <button
                 onClick={() => handleShapeSelect('polygon')}
-                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
+                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs transition-all duration-200 ${
                   selectionShape === 'polygon' 
-                    ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
-                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
                 }`}
               >
                 {getShapeIcon('polygon')}
@@ -827,10 +843,10 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
               </button>
               <button
                 onClick={() => handleShapeSelect('freehand')}
-                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-xs transition-all duration-200 ${
+                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs transition-all duration-200 ${
                   selectionShape === 'freehand' 
-                    ? 'bg-blue-600 text-white shadow-lg scale-105 ring-2 ring-blue-400' 
-                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:scale-102'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
                 }`}
               >
                 {getShapeIcon('freehand')}
@@ -841,16 +857,16 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
         )}
 
         {/* 操作提示 */}
-        <div className="text-xs text-gray-400 p-4 bg-gray-700 rounded-xl border border-gray-600">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="text-xs text-gray-400 p-2 bg-gray-700 rounded-lg border border-gray-600">
+          <div className="flex items-center gap-2 mb-1">
             <div className={`w-2 h-2 rounded-full ${
               mapMode === 'browse' ? 'bg-blue-400' :
               mapMode === 'select' ? 'bg-green-400' :
               mapMode === 'erase' ? 'bg-red-400' : 'bg-gray-400'
             } animate-pulse`}></div>
-            <span className="font-medium">操作提示</span>
+            <span className="font-medium text-xs">操作提示</span>
           </div>
-          <div className="text-gray-300">
+          <div className="text-gray-300 text-xs">
             {mapMode === 'browse' && '拖拽浏览地图，滚轮缩放，中键也可拖拽'}
             {mapMode === 'select' && !isInteractiveMode && '选择形状后点击地图开始选择区域'}
             {mapMode === 'select' && isInteractiveMode && !interactiveStartPoint && '点击地图设置起始点'}
@@ -861,7 +877,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
         </div>
       </div>
 
-      {/* 地图容器 */}
+      {/* 地图容器 - 占据剩余空间 */}
       <div className="flex-1 relative min-h-0">
         <div 
           ref={mapContainer}
@@ -871,28 +887,28 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
         
         {/* 选择区域信息面板 */}
         {selections.length > 0 && (
-          <div className="absolute top-4 left-4 bg-gray-900 bg-opacity-95 backdrop-blur-sm rounded-xl p-4 max-w-sm border border-gray-600 shadow-2xl max-h-80 overflow-y-auto">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          <div className="absolute top-4 left-4 bg-gray-900 bg-opacity-95 backdrop-blur-sm rounded-lg p-3 max-w-xs border border-gray-600 shadow-2xl max-h-64 overflow-y-auto">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <h4 className="text-sm font-semibold text-white">选择区域 ({selections.length})</h4>
               <button
                 onClick={() => {
                   selections.forEach(s => removeSelection(s.id));
                 }}
-                className="ml-auto p-1 text-gray-400 hover:text-red-400 transition-colors"
+                className="ml-auto p-1 text-gray-400 hover:text-red-400 transition-colors text-xs"
                 title="清除所有选择"
               >
                 ×
               </button>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-2">
               {selections.map((selection, index) => (
-                <div key={selection.id} className="p-3 bg-gray-800 rounded-lg border border-gray-600 shadow-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                <div key={selection.id} className="p-2 bg-gray-800 rounded-md border border-gray-600">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1">
                       {getShapeIcon(selection.shape)}
-                      <span className="font-medium text-green-400 text-sm">
+                      <span className="font-medium text-green-400 text-xs">
                         {selection.shape === 'rectangle' ? '矩形' :
                          selection.shape === 'circle' ? '圆形' :
                          selection.shape === 'polygon' ? '多边形' : '自由形状'} {index + 1}
@@ -900,7 +916,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
                     </div>
                     <button
                       onClick={() => removeSelection(selection.id)}
-                      className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                      className="p-1 text-gray-400 hover:text-red-400 transition-colors text-xs"
                       title="删除此选择"
                     >
                       ×
@@ -922,7 +938,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
         {/* 交互式选择状态指示器 */}
         {isInteractiveMode && (
-          <div className="absolute top-4 right-4 bg-orange-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <div className="absolute top-4 right-4 bg-orange-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span className="text-sm font-medium">
               {!interactiveStartPoint ? '点击地图设置起始点' : '移动鼠标调整大小，点击完成'}
@@ -932,7 +948,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onAreaSelected, classN
 
         {/* 绘制状态指示器 */}
         {isDrawing && (
-          <div className="absolute top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <div className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span className="text-sm font-medium">正在绘制...</span>
           </div>

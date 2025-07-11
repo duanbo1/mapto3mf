@@ -182,10 +182,10 @@ export const MainPage: React.FC = () => {
       </header>
 
       {/* 主要内容 */}
-      <main className="flex-1 container mx-auto px-6 py-6 min-h-0">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
+      <main className="flex-1 container mx-auto px-6 py-4 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-full">
           {/* 配置面板 */}
-          <div className="lg:col-span-1 min-h-0">
+          <div className="lg:col-span-1 min-h-0 max-h-full overflow-hidden">
             <ConfigPanel
               basicConfig={basicConfig}
               modelConfig={modelConfig}
@@ -196,12 +196,12 @@ export const MainPage: React.FC = () => {
           </div>
 
           {/* 主要工作区域 */}
-          <div className="lg:col-span-3 flex flex-col min-h-0">
+          <div className="lg:col-span-3 flex flex-col min-h-0 max-h-full overflow-hidden">
             {/* 标签页切换 */}
-            <div className="flex mb-4 bg-gray-800 rounded-lg p-1 flex-shrink-0">
+            <div className="flex mb-3 bg-gray-800 rounded-lg p-1 flex-shrink-0">
               <button
                 onClick={() => setActiveTab('map')}
-                className={`flex-1 py-3 px-6 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                   activeTab === 'map' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-white hover:bg-gray-700'
@@ -213,7 +213,7 @@ export const MainPage: React.FC = () => {
               <button
                 onClick={() => setActiveTab('preview')}
                 disabled={!osmData || !selectedBBox}
-                className={`flex-1 py-3 px-6 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                   activeTab === 'preview' 
                     ? 'bg-teal-600 text-white' 
                     : 'text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed'
@@ -225,11 +225,11 @@ export const MainPage: React.FC = () => {
             </div>
 
             {/* 内容区域 */}
-            <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden min-h-0">
+            <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden min-h-0 max-h-full">
               {activeTab === 'map' ? (
-                <div className="h-full flex min-h-0">
+                <div className="h-full flex min-h-0 max-h-full">
                   {/* 地图区域 */}
-                  <div className="flex-1 h-full min-h-0">
+                  <div className="flex-1 h-full min-h-0 max-h-full">
                     <MapSelector
                       onAreaSelected={handleAreaSelected}
                       className="h-full"
@@ -237,22 +237,22 @@ export const MainPage: React.FC = () => {
                   </div>
                   
                   {/* 数据可视化侧边栏 */}
-                  <div className="w-80 border-l border-gray-700 h-full overflow-hidden min-h-0">
+                  <div className="w-72 border-l border-gray-700 h-full overflow-hidden min-h-0 max-h-full">
                     <DataVisualization
                       osmData={osmData}
                       bbox={selectedBBox}
-                      className="h-full p-4"
+                      className="h-full p-3"
                     />
                   </div>
                 </div>
               ) : (
-                <div className="h-full min-h-0">
+                <div className="h-full min-h-0 max-h-full">
                   <Preview3D
                     osmData={osmData}
                     basicConfig={basicConfig}
                     modelConfig={modelConfig}
                     bbox={selectedBBox}
-                    className="h-full p-4"
+                    className="h-full p-3"
                   />
                 </div>
               )}

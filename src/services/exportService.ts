@@ -33,10 +33,10 @@ export class ExportService {
     let objectId = 1;
 
     models.forEach((model) => {
-      console.log(`处理模型 ${modelIndex}:`, model.id, model.type);
+      console.log(`处理模型 ${modelIndex + 1}/${models.length}:`, model.id, model.type);
       
       if (!model.geometry) {
-        console.warn(`模型 ${modelIndex} 没有几何数据`);
+        console.warn(`模型 ${modelIndex + 1} 没有几何数据`);
         return;
       }
       
@@ -48,15 +48,15 @@ export class ExportService {
         const positions = positionAttr.array;
         const indices = model.geometry.index ? model.geometry.index.array : null;
         
-        console.log(`模型 ${modelIndex} 顶点数:`, positions.length / 3);
-        console.log(`模型 ${modelIndex} 索引数:`, indices ? indices.length : '无索引');
+        console.log(`模型 ${modelIndex + 1} 顶点数:`, positions.length / 3);
+        console.log(`模型 ${modelIndex + 1} 索引数:`, indices ? indices.length : '无索引');
         
         // 添加顶点
         for (let i = 0; i < positions.length; i += 3) {
-          // 位置已经在createExportableGeometry中应用了偏移
-          const x = positions[i].toFixed(6);
-          const y = positions[i + 1].toFixed(6);
-          const z = positions[i + 2].toFixed(6);
+          // 确保坐标精度，转换为毫米单位
+          const x = (positions[i] * 1000).toFixed(3);
+          const y = (positions[i + 1] * 1000).toFixed(3);
+          const z = (positions[i + 2] * 1000).toFixed(3);
           vertices.push(`    <vertex x="${x}" y="${y}" z="${z}" />`);
         }
         
@@ -73,7 +73,7 @@ export class ExportService {
         } else {
           // 为非索引几何体生成三角形
           const vertexCount = Math.floor(positions.length / 3);
-          console.log(`模型 ${modelIndex} 非索引几何体，顶点数:`, vertexCount);
+          console.log(`模型 ${modelIndex + 1} 非索引几何体，顶点数:`, vertexCount);
           for (let i = 0; i < vertexCount; i += 3) {
             if (i + 2 < vertexCount) {
               const v1 = i;
@@ -84,7 +84,7 @@ export class ExportService {
           }
         }
 
-        console.log(`模型 ${modelIndex} 生成顶点数:`, vertices.length, '三角形数:', triangles.length);
+        console.log(`模型 ${modelIndex + 1} 生成顶点数:`, vertices.length, '三角形数:', triangles.length);
         
         if (vertices.length > 0 && triangles.length > 0) {
           xml += `
@@ -101,10 +101,10 @@ ${triangles.join('\n')}
 
           objectId++;
         } else {
-          console.warn(`模型 ${modelIndex} 没有有效的几何数据`);
+          console.warn(`模型 ${modelIndex + 1} 没有有效的几何数据`);
         }
       } else {
-        console.warn(`模型 ${modelIndex} 缺少几何属性`);
+        console.warn(`模型 ${modelIndex + 1} 缺少几何属性`);
       }
     });
 
