@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Preview3D } from '../components/Preview3D';
-import { BoundingBox, ModelConfig, BasicConfig, OSMData } from '../types';
-import { ArrowLeft, Settings, Eye } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Preview3D } from "../components/Preview3D";
+import { BoundingBox, ModelConfig, BasicConfig, OSMData } from "../types";
+import { ArrowLeft, Settings, Eye } from "lucide-react";
 
 export const PreviewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -13,10 +13,10 @@ export const PreviewPage: React.FC = () => {
 
   useEffect(() => {
     // 从 sessionStorage 获取数据
-    const storedOsmData = sessionStorage.getItem('osmData');
-    const storedBBox = sessionStorage.getItem('selectedBBox');
-    const storedBasicConfig = sessionStorage.getItem('basicConfig');
-    const storedModelConfig = sessionStorage.getItem('modelConfig');
+    const storedOsmData = sessionStorage.getItem("osmData");
+    const storedBBox = sessionStorage.getItem("selectedBBox");
+    const storedBasicConfig = sessionStorage.getItem("basicConfig");
+    const storedModelConfig = sessionStorage.getItem("modelConfig");
 
     if (storedOsmData && storedBBox && storedBasicConfig && storedModelConfig) {
       setOsmData(JSON.parse(storedOsmData));
@@ -25,7 +25,7 @@ export const PreviewPage: React.FC = () => {
       setModelConfig(JSON.parse(storedModelConfig));
     } else {
       // 如果没有数据，返回主页
-      navigate('/');
+      navigate("/");
     }
   }, [navigate]);
 
@@ -48,7 +48,7 @@ export const PreviewPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate("/")}
                 className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -60,12 +60,15 @@ export const PreviewPage: React.FC = () => {
                 <div>
                   <h1 className="text-2xl font-bold">3D模型预览</h1>
                   <p className="text-gray-400 text-sm">
-                    区域: {selectedBBox.south.toFixed(4)}, {selectedBBox.west.toFixed(4)} 到 {selectedBBox.north.toFixed(4)}, {selectedBBox.east.toFixed(4)}
+                    区域: {selectedBBox.south.toFixed(4)},{" "}
+                    {selectedBBox.west.toFixed(4)} 到{" "}
+                    {selectedBBox.north.toFixed(4)},{" "}
+                    {selectedBBox.east.toFixed(4)}
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4 text-sm text-gray-400">
               <div className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
