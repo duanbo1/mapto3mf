@@ -162,6 +162,9 @@ export class ModelingService {
   private processElement(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.tags || !element.geometry) return;
 
+    // 严格检查元素是否在选择区域内
+    if (!this.isElementInBounds(element, bbox)) return;
+
     const tags = element.tags;
     
     // 处理建筑
@@ -191,32 +194,23 @@ export class ModelingService {
   }
 
   private clipGeometryToBounds(points: {x: number, z: number}[], bbox: BoundingBox): {x: number, z: number}[] {
-    // 简化的几何体裁剪，只保留在边界内的点
-    const clippedPoints: {x: number, z: number}[] = [];
-    
-    for (const point of points) {
-      // 将本地坐标转换回经纬度进行检查
-      const lon = point.x / (111320 * Math.cos(this.centerPoint[1] * Math.PI / 180) * this.scale) + this.centerPoint[0];
-      const lat = -point.z / (111320 * this.scale) + this.centerPoint[1];
-      
-      if (lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east) {
-        clippedPoints.push(point);
-      }
-    }
-    
-    return clippedPoints;
+    // 这个方法不再需要，因为我们在处理元素时就已经过滤了
+    return points;
   }
 
   private createBuilding(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 3) return;
 
-    let points = element.geometry.map(point => 
+    // 只处理在边界内的点
+    let points = element.geometry
+      .filter(point => 
+        point.lat >= bbox.south && point.lat <= bbox.north &&
+        point.lon >= bbox.west && point.lon <= bbox.east
+      )
+      .map(point => 
       this.latLonToLocal(point.lat, point.lon, bbox)
     );
 
-    // 裁剪到选择区域
-    points = this.clipGeometryToBounds(points, bbox);
-    
     if (points.length < 3) return;
 
     // 创建建筑轮廓
@@ -263,8 +257,8 @@ export class ModelingService {
       
       const building = new THREE.Mesh(geometry, material);
       building.rotation.x = -Math.PI / 2;
-      // 建筑底部贴着地面（底盘顶部）
-      building.position.y = this.terrainHeight / 2 + height / 2;
+      // 建筑底部紧贴底盘顶部
+      building.position.y = height / 2;
       building.castShadow = true;
       building.receiveShadow = true;
       building.add(wireframe);
@@ -294,19 +288,24 @@ export class ModelingService {
   }
 
   private isPointInBounds(point: {x: number, z: number}, bbox: BoundingBox): boolean {
-    // 将本地坐标转换回经纬度进行检查
-    const lon = point.x / (111320 * Math.cos(this.centerPoint[1] * Math.PI / 180) * this.scale) + this.centerPoint[0];
-    const lat = -point.z / (111320 * this.scale) + this.centerPoint[1];
-    
-    return lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east;
+    // 这个方法不再需要，因为我们在处理元素时就已经过滤了
+    return true;
   }
 
   private createRoad(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 2) return;
 
-    let points = element.geometry.map(point => 
-      this.latLonToLocal(point.lat, point.lon, bbox)
-    );
+    // 只处理在边界内的点
+    let points = element.geometry
+      .filter(point => 
+        point.lat >= bbox.south && point.lat <= bbox.north &&
+        point.lon >= bbox.west && point.lon <= bbox.east
+      )
+      .map(point => 
+        this.latLonToLocal(point.lat, point.lon, bbox)
+      );
+
+    if (points.length < 2) return;
 
     // 根据道路类型调整参数
     const roadType = element.tags?.highway as keyof typeof modelConfig.roads.types;
@@ -319,12 +318,6 @@ export class ModelingService {
     for (let i = 0; i < points.length - 1; i++) {
       const start = points[i];
       const end = points[i + 1];
-      
-      // 检查线段是否在选择区域内
-      const startInBounds = this.isPointInBounds(start, bbox);
-      const endInBounds = this.isPointInBounds(end, bbox);
-      
-      if (!startInBounds && !endInBounds) continue;
       
       const distance = Math.sqrt(
         Math.pow(end.x - start.x, 2) + Math.pow(end.z - start.z, 2)
@@ -347,10 +340,10 @@ export class ModelingService {
       
       const road = new THREE.Mesh(geometry, material);
       
-      // 定位和旋转道路段 - 道路贴着底盘顶部
+      // 道路紧贴底盘顶部
       road.position.set(
         (start.x + end.x) / 2,
-        this.terrainHeight / 2 + roadConfig.height * this.scale / 2,
+        roadConfig.height * this.scale / 2,
         (start.z + end.z) / 2
       );
       
@@ -374,19 +367,21 @@ export class ModelingService {
   private createBridge(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 2) return;
 
-    const points = element.geometry.map(point => 
-      this.latLonToLocal(point.lat, point.lon, bbox)
-    );
+    // 只处理在边界内的点
+    const points = element.geometry
+      .filter(point => 
+        point.lat >= bbox.south && point.lat <= bbox.north &&
+        point.lon >= bbox.west && point.lon <= bbox.east
+      )
+      .map(point => 
+        this.latLonToLocal(point.lat, point.lon, bbox)
+      );
+
+    if (points.length < 2) return;
 
     for (let i = 0; i < points.length - 1; i++) {
       const start = points[i];
       const end = points[i + 1];
-      
-      // 检查线段是否在选择区域内
-      const startInBounds = this.isPointInBounds(start, bbox);
-      const endInBounds = this.isPointInBounds(end, bbox);
-      
-      if (!startInBounds && !endInBounds) continue;
       
       const distance = Math.sqrt(
         Math.pow(end.x - start.x, 2) + Math.pow(end.z - start.z, 2)
@@ -407,10 +402,10 @@ export class ModelingService {
       
       const bridge = new THREE.Mesh(bridgeGeometry, bridgeMaterial);
       
-      // 桥梁高于地面
+      // 桥梁高于底盘
       bridge.position.set(
         (start.x + end.x) / 2,
-        this.terrainHeight / 2 + modelConfig.bridges.height * this.scale / 2 + 2 * this.scale,
+        modelConfig.bridges.height * this.scale / 2 + 2 * this.scale,
         (start.z + end.z) / 2
       );
       
@@ -440,13 +435,16 @@ export class ModelingService {
   private createWater(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 3) return;
 
-    let points = element.geometry.map(point => 
-      this.latLonToLocal(point.lat, point.lon, bbox)
-    );
-
-    // 裁剪到选择区域
-    points = this.clipGeometryToBounds(points, bbox);
-    
+    // 只处理在边界内的点
+    let points = element.geometry
+      .filter(point => 
+        point.lat >= bbox.south && point.lat <= bbox.north &&
+        point.lon >= bbox.west && point.lon <= bbox.east
+      )
+      .map(point => 
+        this.latLonToLocal(point.lat, point.lon, bbox)
+      );
+      
     if (points.length < 3) return;
 
     try {
@@ -470,8 +468,8 @@ export class ModelingService {
       
       const water = new THREE.Mesh(geometry, material);
       water.rotation.x = -Math.PI / 2;
-      // 水面贴着底盘顶部
-      water.position.y = this.terrainHeight / 2 + modelConfig.water.height * this.scale;
+      // 水面紧贴底盘顶部
+      water.position.y = modelConfig.water.height * this.scale;
       
       // 添加水面波纹效果
       if (modelConfig.water.waveConfig.enabled) {
@@ -495,13 +493,16 @@ export class ModelingService {
   private createVegetation(element: OSMElement, basicConfig: BasicConfig, modelConfig: ModelConfig, bbox: BoundingBox): void {
     if (!element.geometry || element.geometry.length < 3) return;
 
-    let points = element.geometry.map(point => 
-      this.latLonToLocal(point.lat, point.lon, bbox)
-    );
-
-    // 裁剪到选择区域
-    points = this.clipGeometryToBounds(points, bbox);
-    
+    // 只处理在边界内的点
+    let points = element.geometry
+      .filter(point => 
+        point.lat >= bbox.south && point.lat <= bbox.north &&
+        point.lon >= bbox.west && point.lon <= bbox.east
+      )
+      .map(point => 
+        this.latLonToLocal(point.lat, point.lon, bbox)
+      );
+      
     if (points.length < 3) return;
 
     try {
@@ -522,8 +523,8 @@ export class ModelingService {
       
       const vegetation = new THREE.Mesh(geometry, material);
       vegetation.rotation.x = -Math.PI / 2;
-      // 植被贴着底盘顶部
-      vegetation.position.y = this.terrainHeight / 2 + modelConfig.vegetation.height * this.scale / 2;
+      // 植被紧贴底盘顶部
+      vegetation.position.y = modelConfig.vegetation.height * this.scale / 2;
       vegetation.receiveShadow = true;
       
       // 添加随机树木
@@ -547,51 +548,76 @@ export class ModelingService {
 
   // 创建可导出的几何体数据
   private createExportableGeometry(geometry: THREE.BufferGeometry, position: THREE.Vector3): any {
-    // 确保几何体有正确的属性
-    if (!geometry.attributes.position) {
-      console.warn('几何体缺少位置属性');
-      return null;
-    }
+    try {
+      // 确保几何体有正确的属性
+      if (!geometry.attributes.position) {
+        console.warn('几何体缺少位置属性');
+        return null;
+      }
 
-    // 确保几何体计算了边界盒
-    geometry.computeBoundingBox();
-    geometry.computeBoundingSphere();
+      // 确保几何体计算了边界盒
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
 
-    // 创建包含完整几何数据的对象
-    const exportGeometry = {
-      attributes: {
-        position: {
-          array: new Float32Array(geometry.attributes.position.array),
-          itemSize: geometry.attributes.position.itemSize,
-          count: geometry.attributes.position.count
-        }
-      },
-      index: geometry.index ? {
-        array: new Uint32Array(geometry.index.array),
-        count: geometry.index.count
-      } : null
-    };
+      // 获取原始顶点数据
+      const positionArray = geometry.attributes.position.array;
+      const vertexCount = geometry.attributes.position.count;
+      
+      // 应用位置偏移到每个顶点
+      const transformedPositions = new Float32Array(positionArray.length);
+      for (let i = 0; i < vertexCount; i++) {
+        const i3 = i * 3;
+        transformedPositions[i3] = positionArray[i3] + position.x;
+        transformedPositions[i3 + 1] = positionArray[i3 + 1] + position.y;
+        transformedPositions[i3 + 2] = positionArray[i3 + 2] + position.z;
+      }
 
-    // 如果有法向量，也包含进去
-    if (geometry.attributes.normal) {
-      exportGeometry.attributes.normal = {
-        array: new Float32Array(geometry.attributes.normal.array),
-        itemSize: geometry.attributes.normal.itemSize,
-        count: geometry.attributes.normal.count
+      // 创建包含完整几何数据的对象
+      const exportGeometry = {
+        attributes: {
+          position: {
+            array: transformedPositions,
+            itemSize: 3,
+            count: vertexCount
+          }
+        },
+        index: geometry.index ? {
+          array: new Uint32Array(geometry.index.array),
+          count: geometry.index.count
+        } : null
       };
-    } else {
-      // 如果没有法向量，计算它们
-      geometry.computeVertexNormals();
+
+      // 处理法向量
       if (geometry.attributes.normal) {
         exportGeometry.attributes.normal = {
           array: new Float32Array(geometry.attributes.normal.array),
-          itemSize: geometry.attributes.normal.itemSize,
+          itemSize: 3,
           count: geometry.attributes.normal.count
         };
+      } else {
+        // 计算法向量
+        geometry.computeVertexNormals();
+        if (geometry.attributes.normal) {
+          exportGeometry.attributes.normal = {
+            array: new Float32Array(geometry.attributes.normal.array),
+            itemSize: 3,
+            count: geometry.attributes.normal.count
+          };
+        }
       }
-    }
 
-    return exportGeometry;
+      console.log('导出几何体数据:', {
+        vertexCount,
+        hasIndex: !!exportGeometry.index,
+        indexCount: exportGeometry.index?.count || 0,
+        hasNormals: !!exportGeometry.attributes.normal
+      });
+
+      return exportGeometry;
+    } catch (error) {
+      console.error('创建导出几何体时出错:', error);
+      return null;
+    }
   }
 
   // 辅助方法
@@ -655,6 +681,7 @@ export class ModelingService {
     }
   }
 
+  // 优化树木生成
   private addTrees(vegetation: THREE.Mesh, points: any[], vegetationConfig: any): void {
     const treeCount = Math.min(10, Math.floor(points.length * vegetationConfig.density));
     
@@ -677,16 +704,16 @@ export class ModelingService {
       const crown = new THREE.Mesh(crownGeometry, crownMaterial);
       
       const randomOffset = vegetationConfig.treeConfig.randomness * this.scale;
-      // 树木贴着底盘顶部
+      // 树木紧贴底盘顶部
       trunk.position.set(
         randomPoint.x + (Math.random() - 0.5) * randomOffset,
-        this.terrainHeight / 2 + vegetationConfig.height * 0.3 * this.scale,
+        vegetationConfig.height * 0.3 * this.scale,
         randomPoint.z + (Math.random() - 0.5) * randomOffset
       );
       
       crown.position.set(
         trunk.position.x,
-        this.terrainHeight / 2 + vegetationConfig.height * 0.8 * this.scale,
+        vegetationConfig.height * 0.8 * this.scale,
         trunk.position.z
       );
       

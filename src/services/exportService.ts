@@ -35,10 +35,15 @@ export class ExportService {
     models.forEach((model) => {
       console.log(`处理模型 ${modelIndex}:`, model.id, model.type);
       
+      if (!model.geometry) {
+        console.warn(`模型 ${modelIndex} 没有几何数据`);
+        return;
+      }
+      
       const vertices: string[] = [];
       const triangles: string[] = [];
       
-      if (model.geometry && model.geometry.attributes && model.geometry.attributes.position) {
+      if (model.geometry.attributes && model.geometry.attributes.position) {
         const positionAttr = model.geometry.attributes.position;
         const positions = positionAttr.array;
         const indices = model.geometry.index ? model.geometry.index.array : null;
@@ -48,10 +53,10 @@ export class ExportService {
         
         // 添加顶点
         for (let i = 0; i < positions.length; i += 3) {
-          // 应用模型的位置偏移
-          const x = (positions[i] + (model.position[0] || 0)).toFixed(6);
-          const y = (positions[i + 1] + (model.position[1] || 0)).toFixed(6);
-          const z = (positions[i + 2] + (model.position[2] || 0)).toFixed(6);
+          // 位置已经在createExportableGeometry中应用了偏移
+          const x = positions[i].toFixed(6);
+          const y = positions[i + 1].toFixed(6);
+          const z = positions[i + 2].toFixed(6);
           vertices.push(`    <vertex x="${x}" y="${y}" z="${z}" />`);
         }
         
