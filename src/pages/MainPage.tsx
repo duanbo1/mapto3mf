@@ -152,9 +152,9 @@ export const MainPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
       {/* 头部 */}
-      <header className="border-b border-gray-800 bg-gray-900">
+      <header className="border-b border-gray-800 bg-gray-900 flex-shrink-0">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -182,10 +182,10 @@ export const MainPage: React.FC = () => {
       </header>
 
       {/* 主要内容 */}
-      <main className="container mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-140px)]">
+      <main className="flex-1 container mx-auto px-6 py-6 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
           {/* 配置面板 */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 min-h-0">
             <ConfigPanel
               basicConfig={basicConfig}
               modelConfig={modelConfig}
@@ -196,9 +196,9 @@ export const MainPage: React.FC = () => {
           </div>
 
           {/* 主要工作区域 */}
-          <div className="lg:col-span-3 flex flex-col">
+          <div className="lg:col-span-3 flex flex-col min-h-0">
             {/* 标签页切换 */}
-            <div className="flex mb-4 bg-gray-800 rounded-lg p-1">
+            <div className="flex mb-4 bg-gray-800 rounded-lg p-1 flex-shrink-0">
               <button
                 onClick={() => setActiveTab('map')}
                 className={`flex-1 py-3 px-6 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
@@ -225,11 +225,11 @@ export const MainPage: React.FC = () => {
             </div>
 
             {/* 内容区域 */}
-            <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden min-h-0">
               {activeTab === 'map' ? (
-                <div className="h-full flex">
+                <div className="h-full flex min-h-0">
                   {/* 地图区域 */}
-                  <div className="flex-1 h-full">
+                  <div className="flex-1 h-full min-h-0">
                     <MapSelector
                       onAreaSelected={handleAreaSelected}
                       className="h-full"
@@ -237,7 +237,7 @@ export const MainPage: React.FC = () => {
                   </div>
                   
                   {/* 数据可视化侧边栏 */}
-                  <div className="w-80 border-l border-gray-700 h-full overflow-hidden">
+                  <div className="w-80 border-l border-gray-700 h-full overflow-hidden min-h-0">
                     <DataVisualization
                       osmData={osmData}
                       bbox={selectedBBox}
@@ -246,7 +246,7 @@ export const MainPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="h-full">
+                <div className="h-full min-h-0">
                   <Preview3D
                     osmData={osmData}
                     basicConfig={basicConfig}
